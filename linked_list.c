@@ -7,9 +7,9 @@
 Node* add(Node *head, __pid_t pid, char *name) {
 
     // Create new node
-    Node *new = malloc(sizeof(struct Node));
+    Node *new = (Node*)malloc(sizeof(struct Node));
     if (new == NULL) {
-        fprintf(stderr, "Error: malloc failed in linked list add()");
+        fprintf(stderr, "Error: malloc failed in linked list add()\n");
         exit(1);
     }
     new->next = NULL;

@@ -12,6 +12,11 @@
 #define HOST_MAX 25
 #define MAX_ARG_LEN 100
 
+Node* check_bg_processes(Node* head);
+char** tokenize(char* input, int* count);
+void cd(char* dir);
+Node* run_process(char* proc, char** argv, int bg, Node* head);
+
 int main() {
 	// Determine prompt
 	char cwd[PATH_MAX];
@@ -26,18 +31,7 @@ int main() {
 	while (!bailout) {
 
 		// Check for finished background processes
-		Node* cur = head;
-		int stat;
-		while (cur != NULL) {
-			if (waitpid(cur->pid, &stat, WNOHANG)) {
-				printf("%d: %s %d has terminated.\n", cur->pid, cur->name, cur->index);
-				Node* toRemove = cur;
-				cur = cur->next;
-				head = remove_by_pid(head, toRemove->pid);
-			} else {
-				cur = cur->next;
-			}
-		}
+		head = check_bg_processes(head);
 
 		getcwd(cwd, sizeof(cwd));
 		snprintf(prompt, sizeof(prompt), "%s@%s: %s > ", login, host, cwd);
@@ -50,76 +44,119 @@ int main() {
 		}
 
 		// Tokenize response
-		char *tokens[MAX_ARG_LEN]; //fix this 
-		int i = 0;
-		tokens[i] = strtok(reply, " ");
-		while (tokens[i] != NULL) {
-			tokens[++i] = strtok(NULL, " ");
-		}
+		int token_count = 0;
+		char **tokens = tokenize(reply, &token_count);
 
 		if (tokens[0] != NULL) {
 
 			// Change directory
 			if (strcmp(tokens[0], "cd") == 0) {
-				char *home = getenv("HOME");
-				if (tokens[1] != NULL && strcmp(tokens[1], "~") != 0) {
-					char* new_dir = tokens[1];
-
-					// Handle ~
-					if (tokens[1][0] == '~') {	
-						new_dir = home;
-						strcat(new_dir, tokens[1]+1);
-					}
-					if (chdir(new_dir) != 0) {
-						fprintf(stderr, "cd: %s: No such file or directory\n", new_dir);
-					}
-				} else {
-					chdir(home);
-				}
+				cd(tokens[1]);
 			}
 
-			// Run foregroud process
+			// List background processes
+			else if (strcmp(tokens[0], "bglist") == 0) {
+				print_lst(head);
+			}
+
+			// Run processes
 			else {
-				int bg = 0;
-				char **argv = tokens;
-				char *proc = reply;
 				// Check for background
-				if (strcmp(proc, "bg") == 0) {
-					bg = 1;
+				if (strcmp(tokens[0], "bg") == 0) {
 					if (tokens[1] != NULL) {
-						proc = tokens[1];
-						// argv = &argv[1];
-						argv = &tokens[1];
+						head = run_process(tokens[1], &tokens[1], 1, head);
 					} else {
 						fprintf(stderr, "Error: please provide a command to run in the background\n");
 					}
-				}
-			
-				pid_t pid = fork();
-				if (pid < 0) {
-					fprintf(stderr, "Error: fork failed\n");
-					exit(-1);
-				} else if (!pid) {
-					// printf("In child process\n");
-					// Run the process
-
-					// if (bg) {
-					// 	head = add(head, pid, proc);
-						// print_lst(head);
-					// }
-
-					execvp(proc, argv);
-					exit(0);
-				} else if (bg) {
-					head = add(head, pid, proc);
-					// print_lst(head);
 				} else {
-					wait(NULL); //only wait if it's not a bg process
+					run_process(tokens[0], tokens, 0, NULL);
 				}
 			}
 		}
+
+		// Free pointers
 		free(reply);
+		for (int i = 0; i < token_count; i++) {
+			free(tokens[i]);
+		}
+		free(tokens);
 	}
 	printf("Bye Bye\n");
 	return 0;
+}
+
+
+Node* check_bg_processes(Node* head) {
+	Node* cur = head;
+	int stat;
+	while (cur != NULL) {
+		if (waitpid(cur->pid, &stat, WNOHANG)) {
+			printf("%d: %s %d has terminated.\n", cur->pid, cur->name, cur->index);
+			Node* toRemove = cur;
+			cur = cur->next;
+			head = remove_by_pid(head, toRemove->pid);
+		} else {
+			cur = cur->next;
+		}
+	}
+	return head;
+}
+
+
+char** tokenize(char* input, int *count) {
+
+	// Allocate space for array
+	int initial_capacity = 5;
+	char** tokens = (char**)malloc(initial_capacity*sizeof(char*));
+	if (tokens == NULL) {
+		fprintf(stderr, "Error: malloc failed in tokenize()\n");
+	}
+
+	// Split input into tokens
+	int i = 0;
+	char* token = strtok(input, " ");
+    while (token != NULL) {
+        if (i >= initial_capacity - 1) {
+            initial_capacity *= 2;
+            tokens = realloc(tokens, initial_capacity*sizeof(char*));
+        }
+        tokens[i++] = strdup(token);
+        token = strtok(NULL, " ");
+    }
+	tokens[i] = NULL;
+	*count = i;
+	return tokens;
+}
+
+
+void cd(char* dir) {
+	char *home = getenv("HOME");
+	if (dir != NULL && strcmp(dir, "~") != 0) {
+		if (dir[0] == '~') { // Handle ~
+			strcat(dir, dir+1);
+		}
+		if (chdir(dir) != 0) {
+			fprintf(stderr, "cd: %s: No such file or directory\n", dir);
+		}
+	} else { // Empty input
+		chdir(home); 
+	}
+}
+
+
+Node* run_process(char* proc, char** argv, int bg, Node* head) {
+	pid_t pid = fork();
+	if (pid < 0) {
+		fprintf(stderr, "Error: fork failed\n");
+		exit(-1);
+	} else if (!pid) {
+		execvp(proc, argv);
+		exit(0);
+	} else if (bg) { //Background process
+		head = add(head, pid, proc);
+		return head;
+	} else {
+		wait(NULL); //Only wait if it's not a background process
+		return NULL;
+	}
 }
