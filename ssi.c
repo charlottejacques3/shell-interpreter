@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <linux/limits.h>
@@ -16,8 +17,12 @@ Node* check_bg_processes(Node* head);
 char** tokenize(char* input, int* count);
 void cd(char* dir);
 Node* run_process(char* proc, char** argv, int bg, Node* head);
+void signal_handler(int signum);
+
+volatile sig_atomic_t interrupt = 0;
 
 int main() {
+	signal(SIGINT, signal_handler);
 	// Determine prompt
 	char cwd[PATH_MAX];
 	char host[HOST_MAX];
@@ -41,6 +46,10 @@ int main() {
 		if (reply == NULL) {
 			bailout = 1;
 			break;
+		} else if (interrupt) {
+			interrupt = 0;
+			free(reply);
+			continue;
 		}
 
 		// Tokenize response
@@ -151,6 +160,7 @@ Node* run_process(char* proc, char** argv, int bg, Node* head) {
 		fprintf(stderr, "Error: fork failed\n");
 		exit(EXIT_FAILURE);
 	} else if (!pid) {
+		signal(SIGINT, SIG_DFL);
 		execvp(proc, argv);
 		fprintf(stderr, "Error: %s failed\n", proc); // Should only get here if there's a failure
 		exit(EXIT_FAILURE);
@@ -161,4 +171,8 @@ Node* run_process(char* proc, char** argv, int bg, Node* head) {
 		waitpid(pid, NULL, 0); //Only wait if it's not a background process
 		return NULL;
 	}
+}
+
+void signal_handler(int signum) {
+	interrupt = 1;
 }
