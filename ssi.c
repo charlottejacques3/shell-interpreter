@@ -90,7 +90,7 @@ Node* check_bg_processes(Node* head) {
 	Node* cur = head;
 	int stat;
 	while (cur != NULL) {
-		if (waitpid(cur->pid, &stat, WNOHANG)) {
+		if (waitpid(cur->pid, &stat, WNOHANG) > 0) {
 			printf("%d: %s %d has terminated.\n", cur->pid, cur->name, cur->index);
 			Node* toRemove = cur;
 			cur = cur->next;
@@ -133,7 +133,8 @@ void cd(char* dir) {
 	char *home = getenv("HOME");
 	if (dir != NULL && strcmp(dir, "~") != 0) {
 		if (dir[0] == '~') { // Handle ~
-			strcat(dir, dir+1);
+			char path[PATH_MAX];
+			snprintf(path, sizeof(path), "%s%s", home, dir + 1);
 		}
 		if (chdir(dir) != 0) {
 			fprintf(stderr, "cd: %s: No such file or directory\n", dir);
@@ -148,15 +149,16 @@ Node* run_process(char* proc, char** argv, int bg, Node* head) {
 	pid_t pid = fork();
 	if (pid < 0) {
 		fprintf(stderr, "Error: fork failed\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	} else if (!pid) {
 		execvp(proc, argv);
-		exit(0);
+		fprintf(stderr, "Error: %s failed\n", proc); // Should only get here if there's a failure
+		exit(EXIT_FAILURE);
 	} else if (bg) { //Background process
 		head = add(head, pid, proc);
 		return head;
 	} else {
-		wait(NULL); //Only wait if it's not a background process
+		waitpid(pid, NULL, 0); //Only wait if it's not a background process
 		return NULL;
 	}
 }
