@@ -24,6 +24,21 @@ int main() {
 	Node* head = NULL;
 
 	while (!bailout) {
+
+		// Check for finished background processes
+		Node* cur = head;
+		int stat;
+		while (cur != NULL) {
+			if (waitpid(cur->pid, &stat, WNOHANG)) {
+				printf("%d: %s %d has terminated.\n", cur->pid, cur->name, cur->index);
+				Node* toRemove = cur;
+				cur = cur->next;
+				head = remove_by_pid(head, toRemove->pid);
+			} else {
+				cur = cur->next;
+			}
+		}
+
 		getcwd(cwd, sizeof(cwd));
 		snprintf(prompt, sizeof(prompt), "%s@%s: %s > ", login, host, cwd);
 		char* reply = readline(prompt);
@@ -63,15 +78,8 @@ int main() {
 				}
 			}
 
-			// Run background process
-			// else if (strcmp(argv[0], "bg") == 0) {
-			// 	// same as foreground, except we don't wait?
-			// } 
-
 			// Run foregroud process
 			else {
-				// printf("Reply: %s\n", reply);
-
 				int bg = 0;
 				char **argv = tokens;
 				char *proc = reply;
@@ -82,7 +90,6 @@ int main() {
 						proc = tokens[1];
 						// argv = &argv[1];
 						argv = &tokens[1];
-						printf("BG stuff: %s, %s\n", argv[0], argv[1]);
 					} else {
 						fprintf(stderr, "Error: please provide a command to run in the background\n");
 					}
@@ -93,14 +100,20 @@ int main() {
 					fprintf(stderr, "Error: fork failed\n");
 					exit(-1);
 				} else if (!pid) {
-					printf("In child process\n");
+					// printf("In child process\n");
 					// Run the process
-					head = add(head, pid, proc);
-					printf("null? %d\n", head==NULL);
-					print_lst(head);
+
+					// if (bg) {
+					// 	head = add(head, pid, proc);
+						// print_lst(head);
+					// }
+
 					execvp(proc, argv);
 					exit(0);
-				} else if (!bg) {
+				} else if (bg) {
+					head = add(head, pid, proc);
+					// print_lst(head);
+				} else {
 					wait(NULL); //only wait if it's not a bg process
 				}
 			}

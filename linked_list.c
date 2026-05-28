@@ -18,25 +18,48 @@ Node* add(Node *head, __pid_t pid, char *name) {
     strcpy(new->name, name);
 
     // Insert node
-    if (head != NULL) {
+    if (head == NULL) {
+        new->index = 1;
+        head = new;
+    }
+    else {
         Node *cur = head;
         while (cur->next != NULL) {
             cur = cur->next;
         }
+        new->index = cur->index + 1;
         cur->next = new;
     }
-    return new;
+    return head;
 }
 
 
 void print_lst(Node *head) {
     Node *cur = head;
-    int i = 0;
+    int count = 0;
+    printf("\n");
     while (cur != NULL) {
-        i++;
-        printf("%d: %s %d\n", cur->pid, cur->name, i);
+        printf("%d: %s %d\n", cur->pid, cur->name, cur->index);
         cur = cur->next;
+        count++;
     }
-    printf("Total Background Jobs: %d\n", i);
+    printf("Total Background Jobs: %d\n", count);
 }
 
+
+Node* remove_by_pid(Node *head, __pid_t pid) {
+    Node *cur = head;
+    if (head->pid == pid) {
+        free(head);
+        head = cur->next;
+    }
+    while (cur->next != NULL) {
+        if (cur->next->pid == pid) {
+            Node *toRemove = cur->next;
+            cur->next = toRemove->next;
+            free(toRemove);
+        }
+        cur = cur->next;
+    }
+    return head;
+}
