@@ -141,12 +141,13 @@ char** tokenize(char* input, int *count) {
 void cd(char* dir) {
 	char *home = getenv("HOME");
 	if (dir != NULL && strcmp(dir, "~") != 0) {
+		char path[PATH_MAX];
+		strcpy(path, dir);
 		if (dir[0] == '~') { // Handle ~
-			char path[PATH_MAX];
 			snprintf(path, sizeof(path), "%s%s", home, dir + 1);
 		}
-		if (chdir(dir) != 0) {
-			fprintf(stderr, "cd: %s: No such file or directory\n", dir);
+		if (chdir(path) != 0) {
+			fprintf(stderr, "cd: %s: No such file or directory\n", path);
 		}
 	} else { // Empty input
 		chdir(home); 
@@ -157,18 +158,18 @@ void cd(char* dir) {
 Node* run_process(char* proc, char** argv, int bg, Node* head) {
 	pid_t pid = fork();
 	if (pid < 0) {
-		fprintf(stderr, "Error: fork failed\n");
+		perror("Fork failed");
 		exit(EXIT_FAILURE);
 	} else if (!pid) {
 		signal(SIGINT, SIG_DFL);
 		execvp(proc, argv);
-		fprintf(stderr, "Error: %s failed\n", proc); // Should only get here if there's a failure
+		perror(proc); // Should only get here if there's a failure
 		exit(EXIT_FAILURE);
-	} else if (bg) { //Background process
+	} else if (bg) { // Background process
 		head = add(head, pid, proc);
 		return head;
 	} else {
-		waitpid(pid, NULL, 0); //Only wait if it's not a background process
+		waitpid(pid, NULL, 0); // Only wait if it's not a background process
 		return NULL;
 	}
 }
