@@ -16,7 +16,7 @@
 Node* check_bg_processes(Node* head);
 char** tokenize(char* input, int* count);
 void cd(char* dir);
-Node* run_process(char* proc, char** argv, int bg, Node* head);
+Node* run_process(char* proc, char** argv, int bg, Node* head, char* full_name);
 void signal_handler(int signum);
 
 volatile sig_atomic_t interrupt = 0;
@@ -73,12 +73,12 @@ int main() {
 				// Check for background
 				if (strcmp(tokens[0], "bg") == 0) {
 					if (tokens[1] != NULL) {
-						head = run_process(tokens[1], &tokens[1], 1, head);
+						head = run_process(tokens[1], &tokens[1], 1, head, reply);
 					} else {
 						fprintf(stderr, "Error: please provide a command to run in the background\n");
 					}
 				} else {
-					run_process(tokens[0], tokens, 0, NULL);
+					run_process(tokens[0], tokens, 0, NULL, reply);
 				}
 			}
 		}
@@ -100,7 +100,7 @@ Node* check_bg_processes(Node* head) {
 	int stat;
 	while (cur != NULL) {
 		if (waitpid(cur->pid, &stat, WNOHANG) > 0) {
-			printf("%d: %s %d has terminated.\n", cur->pid, cur->name, cur->index);
+			printf("%d: %s has terminated.\n", cur->pid, cur->name);
 			Node* toRemove = cur;
 			cur = cur->next;
 			head = remove_by_pid(head, toRemove->pid);
@@ -114,6 +114,8 @@ Node* check_bg_processes(Node* head) {
 
 char** tokenize(char* input, int *count) {
 
+	char* str_cpy = strdup(input);
+
 	// Allocate space for array
 	int initial_capacity = 5;
 	char** tokens = (char**)malloc(initial_capacity*sizeof(char*));
@@ -123,7 +125,7 @@ char** tokenize(char* input, int *count) {
 
 	// Split input into tokens
 	int i = 0;
-	char* token = strtok(input, " ");
+	char* token = strtok(str_cpy, " ");
     while (token != NULL) {
         if (i >= initial_capacity - 1) {
             initial_capacity *= 2;
@@ -155,7 +157,7 @@ void cd(char* dir) {
 }
 
 
-Node* run_process(char* proc, char** argv, int bg, Node* head) {
+Node* run_process(char* proc, char** argv, int bg, Node* head, char* full_name) {
 	pid_t pid = fork();
 	if (pid < 0) {
 		perror("Fork failed");
@@ -166,7 +168,7 @@ Node* run_process(char* proc, char** argv, int bg, Node* head) {
 		perror(proc); // Should only get here if there's a failure
 		exit(EXIT_FAILURE);
 	} else if (bg) { // Background process
-		head = add(head, pid, proc);
+		head = add(head, pid, full_name);
 		return head;
 	} else {
 		waitpid(pid, NULL, 0); // Only wait if it's not a background process
