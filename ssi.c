@@ -10,7 +10,7 @@
 #include <sys/wait.h>
 #include "linked_list.h"
 
-#define HOST_MAX 25
+#define HOST_MAX 50
 #define MAX_ARG_LEN 100
 
 Node* check_bg_processes(Node* head);
@@ -175,6 +175,7 @@ Node* run_process(char* proc, char** argv, int bg, Node* head, char* full_name) 
 		return NULL;
 	}
 }
+
 
 void signal_handler(int signum) {
 	interrupt = 1;
